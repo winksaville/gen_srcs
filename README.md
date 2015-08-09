@@ -1,3 +1,3 @@
 # Generate sources
 ==================
-A program to generate source fiels
+A program to generate source files
