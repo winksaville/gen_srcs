@@ -18,27 +18,33 @@ class Header:
     Generate C header files
     '''
     # Public fields
-    name = ''
+    file_path = ''
     comments = []
     includes = []
     sys_includes = []
     func_declarations = []
 
     # Initializer
-    def __init__(self, name='', comments=[], includes=[], sys_includes=[],
-            func_declarations=[]):
-        self.name = name
+    def __init__(self, file_path='', comments=[], includes=[], sys_includes=[],
+            type_declarations=[], func_declarations=[]):
+        self.file_path = file_path
         self.comments = comments
         self.includes = includes
         self.sys_includes = sys_includes
+        self.type_declarations = type_declarations
         self.func_declarations = func_declarations
 
-    def append(self, func_sig):
+    def get_name(self):
+        return os.path.basename(self.file_path)
+
+    def append_func_declaration(self, func_sig):
         self.func_declarations.append(func_sig)
 
-    def write(self, f):
-        path = os.path.abspath(self.name)
+    def append_type_declaration(self, type_declaration):
+        self.type_declarations.append(func)
 
+    def write(self, f):
+        path = os.path.abspath(self.file_path)
         parts = []
         while True:
             head, tail = os.path.split(path)
@@ -62,13 +68,18 @@ class Header:
         if self.includes:
             for line in self.includes:
                 print('#include "{0}"'.format(line), file=f)
-            print('', file=f) 
+            print('', file=f)
 
         if self.sys_includes:
             for line in self.sys_includes:
                 print('#include <{0}>'.format(line), file=f)
-            print('', file=f) 
+            print('', file=f)
         
+        if self.type_declarations:
+            for line in self.type_declarations:
+                print('{0};'.format(line), file=f)
+            print('', file=f)
+
         if self.func_declarations:
             for line in self.func_declarations:
                 print('{0};'.format(line), file=f)
@@ -129,14 +140,89 @@ class Function:
 
         print('}', file=f)
 
-def create_files(function_count, file_path, header_path):
+class Library:
+    '''
+    Generate C library
+    '''
+    # Public fields
+    file_path = ''
+    comments = []
+    includes = []
+    sys_includes = []
+    type_declarations = []
+    functions = []
+    header = None
+
+    # Initializer
+    def __init__(self, file_path='', comments=[], includes=[], sys_includes=[],
+            type_declarations=[], functions=[], header=None):
+        self.file_path = file_path
+        self.comments = comments
+        self.includes = includes
+        self.sys_includes = sys_includes
+        self.type_declarations = type_declarations
+        self.functions = functions
+        self.header = header
+
+    def append_type_declaration(self, type_declaration):
+        self.type_declarations.append(func)
+
+    def append_func(self, func):
+        self.header.append_func_declaration(func.func_sig())
+        self.functions.append(func)
+
+    def write(self, f, h):
+        for line in self.comments:
+            print('// {0}'.format(line), file=f)
+        print('', file=f)
+        if self.includes:
+            for line in self.includes:
+                print('#include "{0}"'.format(line), file=f)
+            print('', file=f)
+
+        if self.sys_includes:
+            for line in self.sys_includes:
+                print('#include <{0}>'.format(line), file=f)
+            print('', file=f)
+
+        if self.type_declarations:
+            for line in self.type_declarations:
+                print('{0};'.format(line), file=f)
+                print('', file=f)
+            print('', file=f)
+
+        if self.functions:
+            for func in self.functions:
+                func.write(f)
+                print('', file=f)
+            print('', file=f)
+
+        self.header.write(h)
+
+
+def create_files(function_count, lib_path, header_path):
     '''
     Create files
     '''
-    f = open(file_path, 'w')
+    lib_dir = os.path.dirname(lib_path)
+    os.makedirs(lib_dir, exist_ok=True)
+
+    header_dir = os.path.dirname(header_path)
+    os.makedirs(header_dir, exist_ok=True)
+
+    f = open(lib_path, 'w')
     h = open(header_path, 'w')
 
-    functions = []
+    lib_basename = os.path.basename(lib_path)
+    lib_name, _ = os.path.splitext(lib_basename)
+    lib_header = Header(file_path=header_path,
+        comments=['header....'],
+        sys_includes=['stdio.h', 'string.h'],
+        type_declarations=['typedef int {0}_status'.format(lib_name)])
+
+    library = Library(file_path=lib_path, comments=['Test library 1'],
+            includes=[lib_header.get_name()], header=lib_header)
+
     for i in range(function_count):
         func_name = 'func{0}'.format(i)
         func = Function(
@@ -146,18 +232,9 @@ def create_files(function_count, file_path, header_path):
                 params=[],
                 body=['printf("{0}")'.format(func_name)]
         )
-        functions.append(func)
-        func.write(f)
+        library.append_func(func)
 
-    header = Header(
-            name=header_path,
-            comments=['header....'],
-            sys_includes=['stdio.h', 'string.h']
-    )
-    for func in functions:
-        header.append(func.func_sig())
-
-    header.write(h)
+    library.write(f, h)
 
     f.close()
     h.close()
