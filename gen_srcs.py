@@ -10,8 +10,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-v', '--version', action='store_true', dest='print_version',
         default=False, help='Print version.')
 
-parser.add_argument('file_path', help='<file path>', nargs=1)
-parser.add_argument('header_path', help='<header path>', nargs=1)
+parser.add_argument('hierarchy_path', help='<file path>', nargs=1)
+parser.add_argument('library_count', help='<library count>', nargs=1)
+parser.add_argument('function_count_per_lib', help='<function count per library>', nargs=1)
 
 class Header:
     '''
@@ -19,20 +20,20 @@ class Header:
     '''
     # Public fields
     file_path = ''
-    comments = []
-    includes = []
-    sys_includes = []
-    func_declarations = []
+    comments = None
+    includes = None
+    sys_includes = None
+    func_declarations = None
 
     # Initializer
-    def __init__(self, file_path='', comments=[], includes=[], sys_includes=[],
-            type_declarations=[], func_declarations=[]):
+    def __init__(self, file_path='', comments=None, includes=None, sys_includes=None,
+            type_declarations=None, func_declarations=None):
         self.file_path = file_path
-        self.comments = comments
-        self.includes = includes
-        self.sys_includes = sys_includes
-        self.type_declarations = type_declarations
-        self.func_declarations = func_declarations
+        self.comments = comments if comments else []
+        self.includes = includes if includes else []
+        self.sys_includes = sys_includes if sys_includes else []
+        self.type_declarations = type_declarations if type_declarations else []
+        self.func_declarations = func_declarations if func_declarations else []
 
     def get_name(self):
         return os.path.basename(self.file_path)
@@ -92,23 +93,22 @@ class Function:
     Generate a C function
     '''
     # Public fields
-    name = ''
-    rettype = ''
-    params = []
-    comments = []
-    local_declarations = []
-    body = []
+    name = None
+    rettype = None
+    params = None
+    comments = None
+    local_declarations = None
+    body = None
 
     # Initializer
-    def __init__(self, name='', rettype='void', params=[],
-            comments=[], local_declarations=[], body=[]):
+    def __init__(self, name='', rettype='void', params=None,
+            comments=None, local_declarations=None, body=None):
         self.name = name
         self.rettype = rettype
-        self.params = params
-        self.comments = comments
-        self.local_declarations = local_declarations
-        self.body = body
-
+        self.params = params if params else []
+        self.comments = comments if comments else []
+        self.local_declarations = local_declarations if local_declarations else []
+        self.body = body if body else []
 
     def func_sig(self):
         s = '{0} {1}('.format(self.rettype, self.name)
@@ -140,38 +140,49 @@ class Function:
 
         print('}', file=f)
 
-class Library:
+class LibrarySrc:
     '''
-    Generate C library
+    Generate C library source file
     '''
     # Public fields
     file_path = ''
-    comments = []
-    includes = []
-    sys_includes = []
-    type_declarations = []
-    functions = []
+    comments = None
+    includes = None
+    sys_includes = None
+    type_declarations = None
     header = None
+    func_range = range(0, 1)
+    functions = None
 
     # Initializer
-    def __init__(self, file_path='', comments=[], includes=[], sys_includes=[],
-            type_declarations=[], functions=[], header=None):
+    def __init__(self, file_path='', func_range=range(0,1), comments=None,
+            includes=None, sys_includes=None, type_declarations=None, header=None):
         self.file_path = file_path
-        self.comments = comments
-        self.includes = includes
-        self.sys_includes = sys_includes
-        self.type_declarations = type_declarations
-        self.functions = functions
+        self.func_range = func_range
+        self.comments = comments if comments else []
+        self.includes = includes if includes else []
+        self.sys_includes = sys_includes if sys_includes else []
+        self.type_declarations = type_declarations if type_declarations else []
+
         self.header = header
+        self.functions = []
 
-    def append_type_declaration(self, type_declaration):
-        self.type_declarations.append(func)
-
-    def append_func(self, func):
+    def __append_func(self, func):
         self.header.append_func_declaration(func.func_sig())
         self.functions.append(func)
 
-    def write(self, f, h):
+    def write(self, f):
+        for i in self.func_range:
+            func_name = 'func{0}'.format(i)
+            func = Function(
+                    comments=['{0}'.format(func_name)],
+                    rettype='void',
+                    name=func_name,
+                    params=[],
+                    body=['printf("{0}")'.format(func_name)]
+            )
+            self.__append_func(func)
+
         for line in self.comments:
             print('// {0}'.format(line), file=f)
         print('', file=f)
@@ -197,47 +208,80 @@ class Library:
                 print('', file=f)
             print('', file=f)
 
-        self.header.write(h)
 
-
-def create_files(function_count, lib_path, header_path):
+class Library:
     '''
-    Create files
+    Generate C library
     '''
-    lib_dir = os.path.dirname(lib_path)
-    os.makedirs(lib_dir, exist_ok=True)
+    # Public fields
+    lib_path = None
+    func_range = None
 
-    header_dir = os.path.dirname(header_path)
-    os.makedirs(header_dir, exist_ok=True)
+    # Initializer
+    def __init__(self, path='', func_range=range(0, 1)):
+        self.lib_path = path
+        self.func_range = func_range
 
-    f = open(lib_path, 'w')
-    h = open(header_path, 'w')
+    def create(self):
+        '''
+        Create a library with the name of defined by the basename(lib_path)
+        it will include a src/ and an include/ directory.
+        '''
+        lib_name = os.path.basename(self.lib_path)
+        os.makedirs(self.lib_path, exist_ok=True)
 
-    lib_basename = os.path.basename(lib_path)
-    lib_name, _ = os.path.splitext(lib_basename)
-    lib_header = Header(file_path=header_path,
-        comments=['header....'],
-        sys_includes=['stdio.h', 'string.h'],
-        type_declarations=['typedef int {0}_status'.format(lib_name)])
+        header_path = self.lib_path + '/include/' + lib_name + '.h'
+        os.makedirs(os.path.dirname(header_path), exist_ok=True)
+        h = open(header_path, 'w')
 
-    library = Library(file_path=lib_path, comments=['Test library 1'],
-            includes=[lib_header.get_name()], header=lib_header)
+        src_path = self.lib_path + '/src/' + lib_name + '.c'
+        os.makedirs(os.path.dirname(src_path), exist_ok=True)
+        f = open(src_path, 'w')
 
-    for i in range(function_count):
-        func_name = 'func{0}'.format(i)
-        func = Function(
-                comments=['{0}'.format(func_name)],
-                rettype='void',
-                name=func_name,
-                params=[],
-                body=['printf("{0}")'.format(func_name)]
-        )
-        library.append_func(func)
+        lib_header = Header(file_path=header_path,
+            comments=['header....'],
+            sys_includes=['stdio.h', 'string.h'],
+            type_declarations=['typedef int {0}_status'.format(lib_name)])
 
-    library.write(f, h)
+        lib_source = LibrarySrc(file_path=src_path, func_range=self.func_range,
+                comments=['Test library 1'], includes=[lib_header.get_name()],
+                header=lib_header)
 
-    f.close()
-    h.close()
+        lib_source.write(f)
+        lib_header.write(h)
+
+        f.close()
+        h.close()
+
+
+class Hierarchy:
+    '''
+    Generate a Hierarchy of C code
+    '''
+    hierarchy_path = None
+    lib_count = None
+    func_count_per_lib = None
+
+    def __init__(self, hierarchy_path,  lib_count, func_count_per_lib):
+        self.hierarchy_path = hierarchy_path
+        self.lib_count = int(lib_count)
+        self.func_count_per_lib = int(func_count_per_lib)
+
+    def create(self):
+        '''
+        Create files
+        '''
+        # Create root
+        os.makedirs(self.hierarchy_path, exist_ok=True)
+
+        library = []
+        for i in range(0, self.lib_count):
+            base = i * self.func_count_per_lib
+            lib_path = self.hierarchy_path + '/libs' + '/L{:03d}'.format(base)
+            lib = Library(path=lib_path, func_range=
+                    range(base + 1, base + self.func_count_per_lib + 1))
+            library.append(lib)
+            lib.create()
 
 
 def main(args):
@@ -249,14 +293,16 @@ def main(args):
         sys.exit(1)
 
     options = parser.parse_args(args[1:])
-    file_path = options.file_path
-    header_path = options.header_path
+    hierarchy_path = options.hierarchy_path
+    library_count = options.library_count
+    function_count_per_lib = options.function_count_per_lib
 
     if options.print_version:
         print('Version %s' % version)
         return 0
 
-    create_files(10, file_path[0], header_path[0])
+    hierarchy = Hierarchy(hierarchy_path[0], library_count[0], function_count_per_lib[0])
+    hierarchy.create()
     return 0
 
 if __name__ == '__main__':
