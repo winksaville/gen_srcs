@@ -63,7 +63,7 @@ class Header:
         for line in self.comments:
             print('// {0}'.format(line), file=f)
         print('', file=f)
-        print('#ifdef  {0}'.format(conditional_name), file=f)
+        print('#ifndef  {0}'.format(conditional_name), file=f)
         print('#define {0}'.format(conditional_name), file=f)
         print('', file=f)
         if self.includes:
@@ -179,7 +179,7 @@ class LibrarySrc:
                     rettype='void',
                     name=func_name,
                     params=[],
-                    body=['printf("{0}")'.format(func_name)]
+                    body=['printf("{0}\\n")'.format(func_name)]
             )
             self.__append_func(func)
 
@@ -240,7 +240,7 @@ class Library:
 
         lib_header = Header(file_path=header_path,
             comments=['header....'],
-            sys_includes=['stdio.h', 'string.h'],
+            sys_includes=['stdio.h'],
             type_declarations=['typedef int {0}_status'.format(lib_name)])
 
         lib_source = LibrarySrc(file_path=src_path, func_range=self.func_range,
