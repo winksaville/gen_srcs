@@ -110,6 +110,12 @@ class Function:
         self.local_declarations = local_declarations if local_declarations else []
         self.body = body if body else []
 
+    def getName(self):
+        return self.name
+
+    def getParams(self):
+        return self.params
+
     def func_sig(self):
         s = '{0} {1}('.format(self.rettype, self.name)
         if self.params:
@@ -171,6 +177,9 @@ class LibrarySrc:
         self.header.append_func_declaration(func.func_sig())
         self.functions.append(func)
 
+    def getFunctions(self):
+        return self.functions
+
     def write(self, f):
         for i in self.func_range:
             func_name = 'func{0}'.format(i)
@@ -208,55 +217,6 @@ class LibrarySrc:
                 print('', file=f)
             print('', file=f)
 
-class MesonBuilder:
-    __libraries_file = None
-
-    def __init__(self):
-        pass
-
-    def begRoot(self, root_path, applications_path, libraries_path):
-        apps_rel_path = os.path.relpath(applications_path, root_path)
-        libs_rel_path = os.path.relpath(libraries_path, root_path)
-        r = open(root_path + '/meson.build', 'w')
-
-        print('''
-            project('hierarchy', 'c')
-            add_global_arguments('-std=c99', language : 'c')
-
-            subdir(\'{0}\')
-            subdir(\'{1}\')
-            '''.format(apps_rel_path, libs_rel_path), file=r)
-
-        r.close()
-
-    def endRoot(self):
-        pass
-
-    def begLibBuilder(self, libraries_path):
-        libraries_path = libraries_path + '/meson.build'
-        self.__libraries_file = open(libraries_path, 'w')
-
-    def endLibBuilder(self):
-        self.__libraries_file.close()
-
-
-    def addLibBuilder(self, library):
-        builder_path = library.getLibPath() + '/meson.build'
-        os.makedirs(os.path.dirname(builder_path), exist_ok=True)
-        b = open(builder_path, 'w')
-
-        print('incs = include_directories(\'include\')', file=b)
-        print('lib{0} = static_library(\'{0}\', \'src/{0}.c\', include_directories : incs)'.
-                format(library.getLibName()), file=b)
-        print('lib{0}_dep = declare_dependency(include_directories : incs, link_with : lib{0})'.
-                format(library.getLibName()), file=b)
-
-        print('subdir(\'{0}\')'.format(library.getLibName()), file=self.__libraries_file)
-
-        b.close()
-
-
-
 class Library:
     '''
     Generate C library
@@ -264,17 +224,27 @@ class Library:
     # Public fields
     lib_path = None
     func_range = None
+    __lib_header = None
+    __lib_source = None
 
     # Initializer
     def __init__(self, path='', func_range=range(0, 1)):
         self.lib_path = path
         self.func_range = func_range
+        self.__lib_header = None
+        self.__lib_source = None
 
     def getLibPath(self):
         return self.lib_path
 
     def getLibName(self):
         return os.path.basename(self.lib_path)
+
+    def getLibHeaderName(self):
+        return os.path.basename(self.__lib_header.get_name())
+
+    def getFunctions(self):
+        return self.__lib_source.getFunctions()
 
     def create(self):
         '''
@@ -292,20 +262,148 @@ class Library:
         os.makedirs(os.path.dirname(src_path), exist_ok=True)
         f = open(src_path, 'w')
 
-        lib_header = Header(file_path=header_path,
+        self.__lib_header = Header(file_path=header_path,
             comments=['header....'],
             sys_includes=['stdio.h'],
             type_declarations=['typedef int {0}_status'.format(lib_name)])
 
-        lib_source = LibrarySrc(file_path=src_path, func_range=self.func_range,
-                comments=['Test library 1'], includes=[lib_header.get_name()],
-                header=lib_header)
+        self.__lib_source = LibrarySrc(file_path=src_path, func_range=self.func_range,
+                comments=['Test library 1'], includes=[self.__lib_header.get_name()],
+                header=self.__lib_header)
 
-        lib_source.write(f)
-        lib_header.write(h)
+        self.__lib_source.write(f)
+        self.__lib_header.write(h)
 
         f.close()
         h.close()
+
+class Application:
+    '''
+    Generate C test application
+    '''
+    __app_path = None
+    __libraries = None
+
+    # Initializer
+    def __init__(self, path='', libraries=None):
+        self.__app_path = path
+        self.__libraries = libraries if libraries else []
+
+    def getAppName(self):
+        return os.path.basename(self.__app_path)
+
+    def getLibraries(self):
+        return self.__libraries
+
+    def getAppPath(self):
+        return self.__app_path
+
+    def create(self):
+        '''
+        Create a test application with a src/main.c file
+        and is dependent upon all of the libraries and invokes
+        every library function.
+        '''
+
+        # Create a list of includes and body statements
+        includes = []
+        includes.append('<stdio.h>')
+        body = []
+        for lib in self.__libraries:
+            includes.append('"{0}"'.format(lib.getLibHeaderName()))
+            for func in lib.getFunctions():
+                if len(func.params) != 0:
+                    raise Exception('Only handles functions with no parameters: {0}:{1}'.
+                            format(lib.getLibName(), func.func_sig()))
+                body.append('{0}();'.format(func.getName()))
+
+        # Create the test app
+        src_path = self.__app_path + '/src/main.c'
+        os.makedirs(os.path.dirname(src_path), exist_ok=True)
+
+        f = open(src_path, 'w')
+        for inc in includes:
+            print('#include {0}'.format(inc), file=f)
+        print('int main(void) {', file=f)
+        for statement in body:
+            print('  {0}'.format(statement), file=f)
+        print('  return 0; // ok', file=f)
+        print('}', file=f)
+        f.close()
+
+
+class MesonBuilder:
+    __libraries_file = None
+    __apps_file = None
+
+    def __init__(self):
+        pass
+
+    def begRoot(self, root_path, applications_path, libraries_path):
+        apps_rel_path = os.path.relpath(applications_path, root_path)
+        libs_rel_path = os.path.relpath(libraries_path, root_path)
+        r = open(root_path + '/meson.build', 'w')
+
+        print("project('hierarchy', 'c')\n"
+              "add_global_arguments('-std=c99', language : 'c')\n"
+              "\n"
+              "subdir(\'{0}\')\n"
+              "subdir(\'{1}\')\n".format(libs_rel_path, apps_rel_path), file=r)
+
+        r.close()
+
+    def endRoot(self):
+        pass
+
+    def begAppBuilder(self, app_path):
+        apps_path = app_path + '/meson.build'
+        self.__apps_file = open(apps_path, 'w')
+
+    def endAppBuilder(self):
+        self.__apps_file.close()
+
+
+    def addAppToAppBuilder(self, app):
+        builder_path = app.getAppPath() + '/meson.build'
+        os.makedirs(os.path.dirname(builder_path), exist_ok=True)
+        b = open(builder_path, 'w')
+
+        print("executable('{0}',\n"
+              "'src/main.c',\n"
+              "install : true,".format(app.getAppName()), file=b)
+        print("dependencies : [", file=b)
+        for lib in app.getLibraries():
+            print('lib{0}_dep'.format(lib.getLibName()), file=b)
+        print("])", file=b)
+
+        # Add a line for this library in the parent directory
+        print('subdir(\'{0}\')'.format(app.getAppName()), file=self.__apps_file)
+
+        b.close()
+
+    def begLibBuilder(self, libraries_path):
+        libraries_path = libraries_path + '/meson.build'
+        self.__libraries_file = open(libraries_path, 'w')
+
+    def endLibBuilder(self):
+        self.__libraries_file.close()
+
+
+    def addLibToLibBuilder(self, library):
+        builder_path = library.getLibPath() + '/meson.build'
+        os.makedirs(os.path.dirname(builder_path), exist_ok=True)
+        b = open(builder_path, 'w')
+
+        print("incs = include_directories('include')\n"
+              "lib{0} = static_library('{0}', 'src/{0}.c', include_directories: incs)\n"
+              "lib{0}_dep = declare_dependency(include_directories : incs, link_with : lib{0})\n".
+                format(library.getLibName()), file=b)
+
+        # Add a line for this library in the parent directory
+        print('subdir(\'{0}\')'.format(library.getLibName()), file=self.__libraries_file)
+
+        b.close()
+
 
 
 class Hierarchy:
@@ -328,9 +426,11 @@ class Hierarchy:
         # Create root
         os.makedirs(self.hierarchy_path, exist_ok=True)
 
+        # Create the apps and libs directories
         apps_path = self.hierarchy_path + '/apps'
         libraries_path = self.hierarchy_path + '/libs'
 
+        # Create the libraries
         libraries = []
         for i in range(0, self.lib_count):
             base = i * self.func_count_per_lib
@@ -340,12 +440,26 @@ class Hierarchy:
             lib.create()
             libraries.append(lib)
 
+        # Create a test app that invokes all of the library functions
+        apps = []
+        app_path = apps_path + '/testapp'
+        app = Application(app_path, libraries=libraries)
+        app.create()
+        apps.append(app)
+
+        # Create the Meson Builder in all of the directories
         mesonBuilder = MesonBuilder()
+
         mesonBuilder.begRoot(self.hierarchy_path, apps_path, libraries_path)
+
+        mesonBuilder.begAppBuilder(apps_path)
+        for app in apps:
+            mesonBuilder.addAppToAppBuilder(app)
+        mesonBuilder.endAppBuilder
 
         mesonBuilder.begLibBuilder(libraries_path)
         for lib in libraries:
-            mesonBuilder.addLibBuilder(lib)
+            mesonBuilder.addLibToLibBuilder(lib)
         mesonBuilder.endLibBuilder()
 
         mesonBuilder.endRoot()
