@@ -12,7 +12,7 @@ parser.add_argument('-v', '--version', action='store_true', dest='print_version'
 
 parser.add_argument('hierarchy_path', help='<file path>', nargs=1)
 parser.add_argument('library_count', help='<library count>', nargs=1)
-parser.add_argument('function_count_per_lib', help='<function count per library>', nargs=1)
+parser.add_argument('function_count_per_library', help='<function count per library>', nargs=1)
 
 class Header:
     '''
@@ -208,6 +208,54 @@ class LibrarySrc:
                 print('', file=f)
             print('', file=f)
 
+class MesonBuilder:
+    __libraries_file = None
+
+    def __init__(self):
+        pass
+
+    def begRoot(self, root_path, applications_path, libraries_path):
+        apps_rel_path = os.path.relpath(applications_path, root_path)
+        libs_rel_path = os.path.relpath(libraries_path, root_path)
+        r = open(root_path + '/meson.build', 'w')
+
+        print('''
+            project('hierarchy', 'c')
+            add_global_arguments('-std=c99', language : 'c')
+
+            subdir(\'{0}\')
+            subdir(\'{1}\')
+            '''.format(apps_rel_path, libs_rel_path), file=r)
+
+        r.close()
+
+    def endRoot(self):
+        pass
+
+    def begLibBuilder(self, libraries_path):
+        libraries_path = libraries_path + '/meson.build'
+        self.__libraries_file = open(libraries_path, 'w')
+
+    def endLibBuilder(self):
+        self.__libraries_file.close()
+
+
+    def addLibBuilder(self, library):
+        builder_path = library.getLibPath() + '/meson.build'
+        os.makedirs(os.path.dirname(builder_path), exist_ok=True)
+        b = open(builder_path, 'w')
+
+        print('incs = include_directories(\'include\')', file=b)
+        print('lib{0} = static_library(\'{0}\', \'src/{0}.c\', include_directories : incs)'.
+                format(library.getLibName()), file=b)
+        print('lib{0}_dep = declare_dependency(include_directories : incs, link_with : lib{0})'.
+                format(library.getLibName()), file=b)
+
+        print('subdir(\'{0}\')'.format(library.getLibName()), file=self.__libraries_file)
+
+        b.close()
+
+
 
 class Library:
     '''
@@ -222,12 +270,18 @@ class Library:
         self.lib_path = path
         self.func_range = func_range
 
+    def getLibPath(self):
+        return self.lib_path
+
+    def getLibName(self):
+        return os.path.basename(self.lib_path)
+
     def create(self):
         '''
         Create a library with the name of defined by the basename(lib_path)
         it will include a src/ and an include/ directory.
         '''
-        lib_name = os.path.basename(self.lib_path)
+        lib_name = self.getLibName()
         os.makedirs(self.lib_path, exist_ok=True)
 
         header_path = self.lib_path + '/include/' + lib_name + '.h'
@@ -274,14 +328,28 @@ class Hierarchy:
         # Create root
         os.makedirs(self.hierarchy_path, exist_ok=True)
 
-        library = []
+        apps_path = self.hierarchy_path + '/apps'
+        libraries_path = self.hierarchy_path + '/libs'
+
+        libraries = []
         for i in range(0, self.lib_count):
             base = i * self.func_count_per_lib
-            lib_path = self.hierarchy_path + '/libs' + '/L{:03d}'.format(base)
+            lib_path = libraries_path + '/L{:03d}'.format(base)
             lib = Library(path=lib_path, func_range=
                     range(base + 1, base + self.func_count_per_lib + 1))
-            library.append(lib)
             lib.create()
+            libraries.append(lib)
+
+        mesonBuilder = MesonBuilder()
+        mesonBuilder.begRoot(self.hierarchy_path, apps_path, libraries_path)
+
+        mesonBuilder.begLibBuilder(libraries_path)
+        for lib in libraries:
+            mesonBuilder.addLibBuilder(lib)
+        mesonBuilder.endLibBuilder()
+
+        mesonBuilder.endRoot()
+
 
 
 def main(args):
@@ -295,13 +363,13 @@ def main(args):
     options = parser.parse_args(args[1:])
     hierarchy_path = options.hierarchy_path
     library_count = options.library_count
-    function_count_per_lib = options.function_count_per_lib
+    function_count_per_library = options.function_count_per_library
 
     if options.print_version:
         print('Version %s' % version)
         return 0
 
-    hierarchy = Hierarchy(hierarchy_path[0], library_count[0], function_count_per_lib[0])
+    hierarchy = Hierarchy(hierarchy_path[0], library_count[0], function_count_per_library[0])
     hierarchy.create()
     return 0
 
