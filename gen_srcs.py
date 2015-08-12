@@ -369,12 +369,12 @@ class MesonBuilder:
         b = open(builder_path, 'w')
 
         print("executable('{0}',\n"
-              "'src/main.c',\n"
-              "install : true,".format(app.getAppName()), file=b)
-        print("dependencies : [", file=b)
+              "  'src/main.c',\n"
+              "  install : true,".format(app.getAppName()), file=b)
+        print("  dependencies : [", file=b)
         for lib in app.getLibraries():
-            print('lib{0}_dep'.format(lib.getLibName()), file=b)
-        print("])", file=b)
+            print('    lib{0}_dep,'.format(lib.getLibName()), file=b)
+        print("  ])", file=b)
 
         # Add a line for this library in the parent directory
         print('subdir(\'{0}\')'.format(app.getAppName()), file=self.__apps_file)
