@@ -11,7 +11,8 @@ parser.add_argument('-v', '--version', action='store_true', dest='print_version'
         default=False, help='Print version.')
 
 parser.add_argument('hierarchy_path', help='<file path>', nargs=1)
-parser.add_argument('library_count', help='<library count>', nargs=1)
+parser.add_argument('builder', help='<builder: cmake meson>', nargs=1)
+parser.add_argument('library_count', help='<Library count>', nargs=1)
 parser.add_argument('function_count_per_library', help='<function count per library>', nargs=1)
 
 class Header:
@@ -405,6 +406,86 @@ class MesonBuilder:
         b.close()
 
 
+class CMakeBuilder:
+    __libraries_file = None
+    __apps_file = None
+
+    def __init__(self):
+        pass
+
+    def begRoot(self, root_path, applications_path, libraries_path):
+        apps_rel_path = os.path.relpath(applications_path, root_path)
+        libs_rel_path = os.path.relpath(libraries_path, root_path)
+        r = open(root_path + '/CMakeLists.txt', 'w')
+
+        print('cmake_minimum_required (VERSION 3.2)\n'
+              'project("hierarchy")\n'
+              'enable_language(C)\n'
+              '\n'
+              'find_program(CCACHE_FOUND ccache)\n'
+              'if(CCACHE_FOUND)\n'
+              '      set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)\n'
+              '      set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)\n'
+              '  endif(CCACHE_FOUND)\n'
+              '\n'
+              'add_subdirectory("{0}")\n'
+              'add_subdirectory("{1}")\n'.format(libs_rel_path, apps_rel_path), file=r)
+
+        r.close()
+
+    def endRoot(self):
+        pass
+
+    def begAppBuilder(self, app_path):
+        apps_path = app_path + '/CMakeLists.txt'
+        self.__apps_file = open(apps_path, 'w')
+
+    def endAppBuilder(self):
+        self.__apps_file.close()
+
+
+    def addAppToAppBuilder(self, app):
+        builder_path = app.getAppPath() + '/CMakeLists.txt'
+        os.makedirs(os.path.dirname(builder_path), exist_ok=True)
+        b = open(builder_path, 'w')
+
+        print('add_executable({0} src/main.c)\n'
+              'target_link_libraries({0}'.format(app.getAppName()), file=b)
+        for lib in app.getLibraries():
+            print('    {0}'.format(lib.getLibName()), file=b)
+        print(")", file=b)
+
+        # Add a line for this library in the parent directory
+        print('add_subdirectory("{0}")'.format(app.getAppName()), file=self.__apps_file)
+
+        b.close()
+
+    def begLibBuilder(self, libraries_path):
+        libraries_path = libraries_path + '/CMakeLists.txt'
+        self.__libraries_file = open(libraries_path, 'w')
+
+    def endLibBuilder(self):
+        self.__libraries_file.close()
+
+
+    def addLibToLibBuilder(self, library):
+        builder_path = library.getLibPath() + '/CMakeLists.txt'
+        os.makedirs(os.path.dirname(builder_path), exist_ok=True)
+        b = open(builder_path, 'w')
+
+        print('add_library({0} STATIC\n'
+              '    src/{0}.c\n'
+              ')\n'
+              'target_include_directories({0} PUBLIC "include")\n'.
+                format(library.getLibName()), file=b)
+
+        # Add a line for this library in the parent directory
+        print('add_subdirectory("{0}")'.format(library.getLibName()),
+                file=self.__libraries_file)
+
+        b.close()
+
+
 
 class Hierarchy:
     '''
@@ -413,11 +494,13 @@ class Hierarchy:
     hierarchy_path = None
     lib_count = None
     func_count_per_lib = None
+    __builder = None
 
-    def __init__(self, hierarchy_path,  lib_count, func_count_per_lib):
+    def __init__(self, hierarchy_path,  lib_count, func_count_per_lib, builder):
         self.hierarchy_path = hierarchy_path
         self.lib_count = int(lib_count)
         self.func_count_per_lib = int(func_count_per_lib)
+        self.__builder = builder
 
     def create(self):
         '''
@@ -448,21 +531,21 @@ class Hierarchy:
         apps.append(app)
 
         # Create the Meson Builder in all of the directories
-        mesonBuilder = MesonBuilder()
+        #mesonBuilder = MesonBuilder()
 
-        mesonBuilder.begRoot(self.hierarchy_path, apps_path, libraries_path)
+        self.__builder.begRoot(self.hierarchy_path, apps_path, libraries_path)
 
-        mesonBuilder.begAppBuilder(apps_path)
+        self.__builder.begAppBuilder(apps_path)
         for app in apps:
-            mesonBuilder.addAppToAppBuilder(app)
-        mesonBuilder.endAppBuilder
+            self.__builder.addAppToAppBuilder(app)
+        self.__builder.endAppBuilder
 
-        mesonBuilder.begLibBuilder(libraries_path)
+        self.__builder.begLibBuilder(libraries_path)
         for lib in libraries:
-            mesonBuilder.addLibToLibBuilder(lib)
-        mesonBuilder.endLibBuilder()
+            self.__builder.addLibToLibBuilder(lib)
+        self.__builder.endLibBuilder()
 
-        mesonBuilder.endRoot()
+        self.__builder.endRoot()
 
 
 
@@ -483,7 +566,18 @@ def main(args):
         print('Version %s' % version)
         return 0
 
-    hierarchy = Hierarchy(hierarchy_path[0], library_count[0], function_count_per_library[0])
+    builders = {
+            'cmake' : CMakeBuilder(),
+            'meson' : MesonBuilder(),
+            }
+    try:
+        builder = builders[options.builder[0]]
+    except:
+        print("option builder is '{0}' must be 'cmake' or 'meson'".format(options.builder))
+        return 1
+
+    hierarchy = Hierarchy(hierarchy_path[0], library_count[0], function_count_per_library[0],
+            builder)
     hierarchy.create()
     return 0
 
