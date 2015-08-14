@@ -7,13 +7,19 @@ version = '0.0.1'
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('-v', '--version', action='store_true', dest='print_version',
-        default=False, help='Print version.')
+parser.add_argument('-v', '--version',
+                    action='store_true',
+                    dest='print_version',
+                    default=False,
+                    help='Print version.')
 
-parser.add_argument('hierarchy_path', help='<file path>', nargs=1)
 parser.add_argument('builder', help='<builder: cmake meson>', nargs=1)
+parser.add_argument('hierarchy_path', help='<file path>', nargs=1)
 parser.add_argument('library_count', help='<Library count>', nargs=1)
-parser.add_argument('function_count_per_library', help='<function count per library>', nargs=1)
+parser.add_argument('function_count_per_library',
+                    help='<function count per library>',
+                    nargs=1)
+
 
 class Header:
     '''
@@ -27,8 +33,13 @@ class Header:
     func_declarations = None
 
     # Initializer
-    def __init__(self, file_path='', comments=None, includes=None, sys_includes=None,
-            type_declarations=None, func_declarations=None):
+    def __init__(self,
+                 file_path='',
+                 comments=None,
+                 includes=None,
+                 sys_includes=None,
+                 type_declarations=None,
+                 func_declarations=None):
         self.file_path = file_path
         self.comments = comments if comments else []
         self.includes = includes if includes else []
@@ -51,7 +62,7 @@ class Header:
         while True:
             head, tail = os.path.split(path)
             if tail == '':
-                break;
+                break
             parts.append(tail)
             path = head
         conditional_name = '__'
@@ -76,7 +87,7 @@ class Header:
             for line in self.sys_includes:
                 print('#include <{0}>'.format(line), file=f)
             print('', file=f)
-        
+
         if self.type_declarations:
             for line in self.type_declarations:
                 print('{0};'.format(line), file=f)
@@ -88,6 +99,7 @@ class Header:
             print('', file=f)
 
         print('#endif // {0}'.format(conditional_name), file=f)
+
 
 class Function:
     '''
@@ -102,8 +114,13 @@ class Function:
     body = None
 
     # Initializer
-    def __init__(self, name='', rettype='void', params=None,
-            comments=None, local_declarations=None, body=None):
+    def __init__(self,
+                 name='',
+                 rettype='void',
+                 params=None,
+                 comments=None,
+                 local_declarations=None,
+                 body=None):
         self.name = name
         self.rettype = rettype
         self.params = params if params else []
@@ -139,13 +156,14 @@ class Function:
         if self.local_declarations:
             for line in self.local_declarations:
                 print('    {0};'.format(line), file=f)
-            print('') 
-        
+            print('')
+
         if self.body:
             for line in self.body:
                 print('    {0};'.format(line), file=f)
 
         print('}', file=f)
+
 
 class LibrarySrc:
     '''
@@ -162,8 +180,14 @@ class LibrarySrc:
     functions = None
 
     # Initializer
-    def __init__(self, file_path='', func_range=range(0,1), comments=None,
-            includes=None, sys_includes=None, type_declarations=None, header=None):
+    def __init__(self,
+                 file_path='',
+                 func_range=range(0, 1),
+                 comments=None,
+                 includes=None,
+                 sys_includes=None,
+                 type_declarations=None,
+                 header=None):
         self.file_path = file_path
         self.func_range = func_range
         self.comments = comments if comments else []
@@ -185,12 +209,11 @@ class LibrarySrc:
         for i in self.func_range:
             func_name = 'func{0}'.format(i)
             func = Function(
-                    comments=['{0}'.format(func_name)],
-                    rettype='void',
-                    name=func_name,
-                    params=[],
-                    body=['printf("{0}\\n")'.format(func_name)]
-            )
+                comments=['{0}'.format(func_name)],
+                rettype='void',
+                name=func_name,
+                params=[],
+                body=['printf("{0}\\n")'.format(func_name)])
             self.__append_func(func)
 
         for line in self.comments:
@@ -217,6 +240,7 @@ class LibrarySrc:
                 func.write(f)
                 print('', file=f)
             print('', file=f)
+
 
 class Library:
     '''
@@ -263,20 +287,24 @@ class Library:
         os.makedirs(os.path.dirname(src_path), exist_ok=True)
         f = open(src_path, 'w')
 
-        self.__lib_header = Header(file_path=header_path,
+        self.__lib_header = Header(
+            file_path=header_path,
             comments=['header....'],
             sys_includes=['stdio.h'],
             type_declarations=['typedef int {0}_status'.format(lib_name)])
 
-        self.__lib_source = LibrarySrc(file_path=src_path, func_range=self.func_range,
-                comments=['Test library 1'], includes=[self.__lib_header.get_name()],
-                header=self.__lib_header)
+        self.__lib_source = LibrarySrc(file_path=src_path,
+                                       func_range=self.func_range,
+                                       comments=['Test library 1'],
+                                       includes=[self.__lib_header.get_name()],
+                                       header=self.__lib_header)
 
         self.__lib_source.write(f)
         self.__lib_header.write(h)
 
         f.close()
         h.close()
+
 
 class Application:
     '''
@@ -314,8 +342,9 @@ class Application:
             includes.append('"{0}"'.format(lib.getLibHeaderName()))
             for func in lib.getFunctions():
                 if len(func.params) != 0:
-                    raise Exception('Only handles functions with no parameters: {0}:{1}'.
-                            format(lib.getLibName(), func.func_sig()))
+                    raise Exception(
+                        'Only handles functions with no parameters: {0}:{1}'.format(
+                            lib.getLibName(), func.func_sig()))
                 body.append('{0}();'.format(func.getName()))
 
         # Create the test app
@@ -349,7 +378,8 @@ class MesonBuilder:
               "add_global_arguments('-std=c99', language : 'c')\n"
               "\n"
               "subdir(\'{0}\')\n"
-              "subdir(\'{1}\')\n".format(libs_rel_path, apps_rel_path), file=r)
+              "subdir(\'{1}\')\n".format(libs_rel_path, apps_rel_path),
+              file=r)
 
         r.close()
 
@@ -363,7 +393,6 @@ class MesonBuilder:
     def endAppBuilder(self):
         self.__apps_file.close()
 
-
     def addAppToAppBuilder(self, app):
         builder_path = app.getAppPath() + '/meson.build'
         os.makedirs(os.path.dirname(builder_path), exist_ok=True)
@@ -371,7 +400,8 @@ class MesonBuilder:
 
         print("executable('{0}',\n"
               "  'src/main.c',\n"
-              "  install : true,".format(app.getAppName()), file=b)
+              "  install : true,".format(app.getAppName()),
+              file=b)
         print("  dependencies : [", file=b)
         for lib in app.getLibraries():
             print('    lib{0}_dep,'.format(lib.getLibName()), file=b)
@@ -389,19 +419,21 @@ class MesonBuilder:
     def endLibBuilder(self):
         self.__libraries_file.close()
 
-
     def addLibToLibBuilder(self, library):
         builder_path = library.getLibPath() + '/meson.build'
         os.makedirs(os.path.dirname(builder_path), exist_ok=True)
         b = open(builder_path, 'w')
 
-        print("incs = include_directories('include')\n"
-              "lib{0} = static_library('{0}', 'src/{0}.c', include_directories: incs)\n"
-              "lib{0}_dep = declare_dependency(include_directories : incs, link_with : lib{0})\n".
-                format(library.getLibName()), file=b)
+        print(
+            "incs = include_directories('include')\n"
+            "lib{0} = static_library('{0}', 'src/{0}.c', include_directories: incs)\n"
+            "lib{0}_dep = declare_dependency(include_directories : incs, link_with : lib{0})\n".format(
+                library.getLibName()),
+            file=b)
 
         # Add a line for this library in the parent directory
-        print('subdir(\'{0}\')'.format(library.getLibName()), file=self.__libraries_file)
+        print('subdir(\'{0}\')'.format(library.getLibName()),
+              file=self.__libraries_file)
 
         b.close()
 
@@ -429,7 +461,8 @@ class CMakeBuilder:
               '  endif(CCACHE_FOUND)\n'
               '\n'
               'add_subdirectory("{0}")\n'
-              'add_subdirectory("{1}")\n'.format(libs_rel_path, apps_rel_path), file=r)
+              'add_subdirectory("{1}")\n'.format(libs_rel_path, apps_rel_path),
+              file=r)
 
         r.close()
 
@@ -443,20 +476,21 @@ class CMakeBuilder:
     def endAppBuilder(self):
         self.__apps_file.close()
 
-
     def addAppToAppBuilder(self, app):
         builder_path = app.getAppPath() + '/CMakeLists.txt'
         os.makedirs(os.path.dirname(builder_path), exist_ok=True)
         b = open(builder_path, 'w')
 
         print('add_executable({0} src/main.c)\n'
-              'target_link_libraries({0}'.format(app.getAppName()), file=b)
+              'target_link_libraries({0}'.format(app.getAppName()),
+              file=b)
         for lib in app.getLibraries():
             print('    {0}'.format(lib.getLibName()), file=b)
         print(")", file=b)
 
         # Add a line for this library in the parent directory
-        print('add_subdirectory("{0}")'.format(app.getAppName()), file=self.__apps_file)
+        print('add_subdirectory("{0}")'.format(app.getAppName()),
+              file=self.__apps_file)
 
         b.close()
 
@@ -467,7 +501,6 @@ class CMakeBuilder:
     def endLibBuilder(self):
         self.__libraries_file.close()
 
-
     def addLibToLibBuilder(self, library):
         builder_path = library.getLibPath() + '/CMakeLists.txt'
         os.makedirs(os.path.dirname(builder_path), exist_ok=True)
@@ -476,15 +509,15 @@ class CMakeBuilder:
         print('add_library({0} STATIC\n'
               '    src/{0}.c\n'
               ')\n'
-              'target_include_directories({0} PUBLIC "include")\n'.
-                format(library.getLibName()), file=b)
+              'target_include_directories({0} PUBLIC "include")\n'.format(
+                  library.getLibName()),
+              file=b)
 
         # Add a line for this library in the parent directory
         print('add_subdirectory("{0}")'.format(library.getLibName()),
-                file=self.__libraries_file)
+              file=self.__libraries_file)
 
         b.close()
-
 
 
 class Hierarchy:
@@ -496,7 +529,7 @@ class Hierarchy:
     func_count_per_lib = None
     __builder = None
 
-    def __init__(self, hierarchy_path,  lib_count, func_count_per_lib, builder):
+    def __init__(self, hierarchy_path, lib_count, func_count_per_lib, builder):
         self.hierarchy_path = hierarchy_path
         self.lib_count = int(lib_count)
         self.func_count_per_lib = int(func_count_per_lib)
@@ -518,8 +551,9 @@ class Hierarchy:
         for i in range(0, self.lib_count):
             base = i * self.func_count_per_lib
             lib_path = libraries_path + '/L{:03d}'.format(base)
-            lib = Library(path=lib_path, func_range=
-                    range(base + 1, base + self.func_count_per_lib + 1))
+            lib = Library(
+                path=lib_path,
+                func_range=range(base + 1, base + self.func_count_per_lib + 1))
             lib.create()
             libraries.append(lib)
 
@@ -548,7 +582,6 @@ class Hierarchy:
         self.__builder.endRoot()
 
 
-
 def main(args):
     '''
     Main program
@@ -566,20 +599,19 @@ def main(args):
         print('Version %s' % version)
         return 0
 
-    builders = {
-            'cmake' : CMakeBuilder(),
-            'meson' : MesonBuilder(),
-            }
+    builders = {'cmake': CMakeBuilder(), 'meson': MesonBuilder(),}
     try:
         builder = builders[options.builder[0]]
     except:
-        print("option builder is '{0}' must be 'cmake' or 'meson'".format(options.builder))
+        print("option builder is '{0}' must be 'cmake' or 'meson'".format(
+            options.builder))
         return 1
 
-    hierarchy = Hierarchy(hierarchy_path[0], library_count[0], function_count_per_library[0],
-            builder)
+    hierarchy = Hierarchy(hierarchy_path[0], library_count[0],
+                          function_count_per_library[0], builder)
     hierarchy.create()
     return 0
+
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[:]))
