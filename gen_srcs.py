@@ -559,7 +559,7 @@ def obj():
 
 @target(abstract=True)
 def bin():
-  bin.build('$Objects', '$Bin', '$c:cc $CFlags $!Libs $!< $(c:binout $@)')
+  bin.build('$Objects', '$Bin', '$c:cc $CFlags $!< $!Libs $(c:binout $@)')
 '''.strip())
 
         with open(os.path.join(root_path, 'template.lib.creator'), 'w') as fp:
