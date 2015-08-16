@@ -555,11 +555,11 @@ define('Bin', '$(p:bin $BuildDir/bin/${self}.)')
 @target(abstract=True)
 def obj():
   obj.build_each('$Sources', '$Objects',
-    '$c:cc $c:compileonly $(c:include $Includes) $CFlags $"< $(c:objout $@)')
+    'ccache $c:cc $c:compileonly $(c:include $Includes) $CFlags $"< $(c:objout $@)')
 
 @target(abstract=True)
 def bin():
-  bin.build('$Objects', '$Bin', '$c:cc $CFlags $!< $!Libs $(c:binout $@)')
+  bin.build('$Objects', '$Bin', 'ccache $c:cc $CFlags $!< $!Libs $(c:binout $@)')
 '''.strip())
 
         with open(os.path.join(root_path, 'template.lib.creator'), 'w') as fp:
@@ -579,11 +579,11 @@ define('Lib', '$(p:lib $BuildDir/libs/$self)')
 
 @target(abstract=True)
 def obj():
-  obj.build_each('$Sources', '$Objects', '$c:cc $c:compileonly $CFlags $(c:include $Includes) $(c:objout $@) $"<')
+  obj.build_each('$Sources', '$Objects', 'ccache $c:cc $c:compileonly $CFlags $(c:include $Includes) $(c:objout $@) $"<')
 
 @target(obj, abstract=True)
 def lib():
-  lib.build('$Objects', '$Lib', '$(c:ar $@) $!<')
+  lib.build('$Objects', '$Lib', 'ccache $(c:ar $@) $!<')
 '''.strip())
 
     def endRoot(self):
