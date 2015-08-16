@@ -606,15 +606,15 @@ def lib():
 
             libs = ''
             includes = ''
-            deps = []
+            lib_deps = []
             for lib in app.getLibraries():
                 fp.write("load('{0}')\n".format(lib.getLibName()))
-                deps.append(lib.getLibName() + ':lib')
+                lib_deps.append(lib.getLibName() + ':lib')
                 libs += ';${0}:Lib'.format(lib.getLibName())
                 includes += ';${0}:Includes'.format(lib.getLibName())
             fp.write("append('Libs', {0!r})\n".format(libs))
             fp.write("append('Includes', {0!r})\n".format(includes))
-            fp.write("[bin.requires(x) for x in %r]\n" % deps)
+            fp.write("[obj.requires(x) for x in %r]\n" % lib_deps)
 
     def begLibBuilder(self, libraries_path):
         self._libs_file = open(os.path.join(libraries_path, '.creator'), 'w')
