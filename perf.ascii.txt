@@ -1,0 +1,16 @@
+ ---------------------------------------------------------------------------------
+ Operation                       | Creator   | Meson     | CMake     | CMake     |
+                                 | Ninja     | Ninja     | Ninja     | Make      |
+ --------------------------------------------|-----------|-----------------------|
+ Generate build system           | 0m2.519   | 0m1.266s  | 0m5.118s  | 0m3.786s  |
+ clear cache                     |           |           |           |           |
+ clean build                     | 1m17.099s | 1m22.926s | 1m26.957s | 1m19.919s |
+ do nothing                      | 0m0.050s  | 0m0.051s  | 0m2.408s  | 0m0.067s  |
+ clean targets                   | 0m0.159s  | 0m0.204s  | 0m7.413s  | 0m0.221s  |
+ clean build with ccache         | 0m42.635s | 0m44.085s | 0m47.487s | 0m44.268s |
+ Add a printf to end of main     |           |           |           |           |
+ build with main changed         | 0m38.749s | 0m40.581s | 0m43.955s | 0m41.891s |
+ Edit last function.             |           |           |           |           |
+ build with func1000000 changed  | 0m4.865s  | 0m6.081s  | 0m8.379s  | 0m7.404s  |
+ ---------------------------------------------------------------------------------
+
