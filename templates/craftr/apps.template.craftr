@@ -27,6 +27,7 @@ target(
   outputs=objects,
   command=[ccache, C.c, C.compile_only, '%%in', C.obj_out('%%out'), C.cinc(includes)],
   foreach=True,
+  description='Building Object (%%out)',
 )
 
 target(
@@ -35,4 +36,5 @@ target(
   requires=libraries,
   outputs=bin,
   command=[ccache, C.c, '%%in', libraries, C.bin_out('%%out')],
+  description='Building App (%%out)',
 )

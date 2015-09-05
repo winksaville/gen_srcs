@@ -23,6 +23,7 @@ target(
   outputs=objects,
   command=[ccache, C.c, C.compile_only, '%%in', C.obj_out('%%out'), C.cinc(includes)],
   foreach=True,
+  description='Building Object (%%out)',
 )
 
 target(
@@ -30,4 +31,5 @@ target(
   inputs=objects,
   outputs=lib,
   command=[ccache, C.ar('%%out'), '%%in'],
+  description='Building Library (%%out)',
 )
