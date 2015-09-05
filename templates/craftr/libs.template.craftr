@@ -1,0 +1,35 @@
+# craftr_module(libs.template)
+
+if module.identifier == 'libs.template':
+  error('libs.template is abstract and can not be loaded directly')
+
+P = load_module('platform')
+C = load_module('compiler')
+
+if not defined('G.build_dir'):
+  error('build_dir must be set globally')
+
+build_dir = join(G.build_dir, 'libs', module.identifier)
+sources = glob(join(project_dir, 'src', '**', '*.c'))
+objects = move(sources, join(project_dir, 'src'), join(build_dir, 'obj'), P.obj)
+includes = [join(project_dir, 'include')]
+lib = P.lib(join(build_dir, 'lib', '%%')).replace('%%', module.identifier)
+
+ccache = load_module('utils.ccache').ccache
+
+target(
+  'Objects',
+  inputs=sources,
+  outputs=objects,
+  command=[ccache, C.c, C.compile_only, '%%in', C.obj_out('%%out'), C.cinc(includes)],
+  foreach=True,
+  description='Building Object (%%out)',
+)
+
+target(
+  'Library',
+  inputs=objects,
+  outputs=lib,
+  command=[ccache, C.ar('%%out'), '%%in'],
+  description='Building Library (%%out)',
+)

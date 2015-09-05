@@ -1,0 +1,22 @@
+# craftr_module(utils.ccache)
+
+import re
+
+def check_ccache():
+  if hasattr(check_ccache, 'cache'):
+    return check_ccache.cache
+
+  ccache = 'ccache'
+  try:
+    output = Process('ccache --version', shell=True).stdout
+  except (Process.ExitCodeError, OSError):
+    ccache = None
+  else:
+    match = re.match('ccache version [\d\.]+', output)
+    if not match:
+      ccache = None
+
+  check_ccache.cache = ccache
+  return ccache
+
+ccache = check_ccache()
