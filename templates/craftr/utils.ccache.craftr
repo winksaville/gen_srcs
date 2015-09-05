@@ -1,0 +1,8 @@
+# craftr_module(utils.ccache)
+
+try:
+  Process('ccache')
+except OSError:
+  ccache = None
+else:
+  ccache = 'ccache'

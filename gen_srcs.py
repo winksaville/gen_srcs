@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Generate C source files
 
-import os.path, sys, argparse
+import os.path, sys, argparse, shutil
 
 version = '0.0.1'
 
@@ -552,14 +552,21 @@ define('Includes', '$ProjectPath/include')
 define('Libs', '')
 define('Bin', '$(p:bin $BuildDir/bin/${self}.)')
 
-@target(abstract=True)
-def obj():
-  obj.build_each('$Sources', '$Objects',
-    'ccache $c:cc $c:compileonly $(c:include $Includes) $CFlags $"< $(c:objout $@)')
+target(
+  name='obj',
+  abstract=True,
+  inputs='$Sources',
+  outputs='$Objects',
+  command='ccache $c:cc $c:compileonly $(c:include $Includes) $CFlags $"< $(c:objout $@)',
+)
 
-@target(abstract=True)
-def bin():
-  bin.build('$Objects', '$Bin', 'ccache $c:cc $CFlags $!< $!Libs $(c:binout $@)')
+target(
+  name='bin',
+  abstract=True,
+  inputs='$Objects',
+  outputs='$Bin',
+  command='ccache $c:cc $CFlags $!< $!Libs $(c:binout $@)',
+)
 '''.strip())
 
         with open(os.path.join(root_path, 'template.lib.creator'), 'w') as fp:
@@ -570,20 +577,29 @@ load('platform', 'p')
 load('compiler', 'c')
 
 if not defined('BuildDir'):
-  raise EnvironmentError('BuildDir is not defined')
+  error('BuildDir is not defined')
 
 define('Includes', '$ProjectPath/include')
 define('Sources', '$(wildcard $ProjectPath/src/*.c)')
 define('Objects', '$(p:obj $(move $Sources, $ProjectPath/src, $BuildDir/obj/$self))')
 define('Lib', '$(p:lib $BuildDir/libs/$self)')
 
-@target(abstract=True)
-def obj():
-  obj.build_each('$Sources', '$Objects', 'ccache $c:cc $c:compileonly $CFlags $(c:include $Includes) $(c:objout $@) $"<')
+target(
+  name='obj',
+  abstract=True,
+  inputs='$Sources',
+  outputs='$Objects',
+  command='ccache $c:cc $c:compileonly $CFlags $(c:include $Includes) $(c:objout $@) $"<',
+)
 
-@target(obj, abstract=True)
-def lib():
-  lib.build('$Objects', '$Lib', 'ccache $(c:ar $@) $!<')
+target(
+  name='lib',
+  requires=['obj'],
+  abstract=True,
+  inputs='$Objects',
+  outputs='$Lib',
+  command='ccache $(c:ar $@) $!<',
+)
 '''.strip())
 
     def endRoot(self):
@@ -630,6 +646,61 @@ def lib():
         with open(os.path.join(lib.getLibPath(), '.creator'), 'w') as fp:
             fp.write('# @creator.unit.name = {0}\n'.format(lib.getLibName()))
             fp.write("extends('template.lib')\n")
+
+
+class CraftrBuilder(object):
+
+    def begRoot(self, root_path, applications_path, libraries_path):
+        from os.path import join, relpath, isdir
+
+        apps_path = relpath(applications_path, root_path)
+        libs_path = relpath(libraries_path, root_path)
+        shutil.copy(template('craftr/hierarchy.craftr'), join(root_path, 'Craftfile'))
+
+        tmpdir = join(root_path, '.craftr')
+        if not isdir(tmpdir):
+            os.mkdir(tmpdir)
+        shutil.copy(template('craftr/libs.template.craftr'), tmpdir)
+        shutil.copy(template('craftr/apps.template.craftr'), tmpdir)
+        shutil.copy(template('craftr/utils.ccache.craftr'), tmpdir)
+
+    def endRoot(self):
+        pass
+
+    def begAppBuilder(self, app_path):
+        self._apps_file = open(os.path.join(app_path, 'Craftfile'), 'w')
+        self._apps_file.write('# craftr_module(apps)\n')
+
+    def endAppBuilder(self):
+        self._apps_file.close()
+        del self._apps_file
+
+    def addAppToAppBuilder(self, app):
+        self._apps_file.write("load_module('apps.{0}')\n".format(app.getAppName()))
+
+        with open(os.path.join(app.getAppPath(), 'Craftfile'), 'w') as fp:
+            requires = []
+            for lib in app.getLibraries():
+                requires.append('libs.' + lib.getLibName())
+
+            fp.write('# craftr_module(apps.{0})\n'.format(app.getAppName()))
+            fp.write('requires = {0!r}\n'.format(requires))
+            fp.write("extends('apps.template')\n")
+
+    def begLibBuilder(self, libraries_path):
+        self._libs_file = open(os.path.join(libraries_path, 'Craftfile'), 'w')
+        self._libs_file.write('# craftr_module(libs)\n')
+
+    def endLibBuilder(self):
+        self._libs_file.close()
+        del self._libs_file
+
+    def addLibToLibBuilder(self, lib):
+        self._libs_file.write("load_module('libs.{0}')\n".format(lib.getLibName()))
+
+        with open(os.path.join(lib.getLibPath(), 'Craftfile'), 'w') as fp:
+            fp.write('# craftr_module(libs.{0})\n'.format(lib.getLibName()))
+            fp.write("extends('libs.template')\n")
 
 
 class Hierarchy:
@@ -694,6 +765,16 @@ class Hierarchy:
         self.__builder.endRoot()
 
 
+def template(path):
+    ''' Returns the path for the template at the specified *path*.
+    The *path* must be relative to the `templates/` directory in this
+    project. '''
+
+    if os.path.isabs(path):
+        raise ValueError('expected relative path')
+    return os.path.join(os.path.dirname(__file__), 'templates', path)
+
+
 def main(args):
     '''
     Main program
@@ -712,12 +793,12 @@ def main(args):
         return 0
 
     builders = {'cmake': CMakeBuilder(), 'meson': MesonBuilder(),
-                'creator': CreatorBuilder()}
+                'creator': CreatorBuilder(), 'craftr': CraftrBuilder()}
     try:
         builder = builders[options.builder[0]]
     except:
-        print("option builder is '{0}' must be 'cmake', 'creator' or 'meson'".format(
-            options.builder))
+        print("option builder is '{0}' must be 'cmake', 'creator', "
+              "'craftr' or 'meson'".format(options.builder))
         return 1
 
     hierarchy = Hierarchy(hierarchy_path[0], library_count[0],

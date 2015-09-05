@@ -1,0 +1,7 @@
+# craftr_module(hierarchy)
+
+G.build_dir = join(project_dir, 'build')
+session.path.append(join(project_dir, 'apps'))
+session.path.append(join(project_dir, 'libs'))
+load_module('apps')
+load_module('libs')

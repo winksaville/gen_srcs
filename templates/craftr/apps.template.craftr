@@ -1,0 +1,38 @@
+# craftr_module(apps.template)
+
+if module.identifier == 'apps.template':
+  error('apps.template is abstract and can not be loaded directly')
+
+P = load_module('platform')
+C = load_module('compiler')
+
+if not defined('G.build_dir'):
+  error('build_dir must be set globally')
+
+if not defined('requires'):
+  error('requires must be defined')
+
+build_dir = join(G.build_dir, 'apps', module.identifier)
+sources = glob(join(project_dir, 'src', '**', '*.c'))
+objects = move(sources, join(project_dir, 'src'), join(build_dir, 'obj'), P.obj)
+includes = [load_module(l).includes for l in requires]
+libraries = [load_module(l).lib for l in requires]
+bin = P.bin(join(build_dir, 'bin', '%%')).replace('%%', module.identifier)
+
+ccache = load_module('utils.ccache').ccache
+
+target(
+  'Objects',
+  inputs=sources,
+  outputs=objects,
+  command=[ccache, C.c, C.compile_only, '%%in', C.obj_out('%%out'), C.cinc(includes)],
+  foreach=True,
+)
+
+target(
+  'Bin',
+  inputs=objects,
+  requires=libraries,
+  outputs=bin,
+  command=[ccache, C.c, '%%in', libraries, C.bin_out('%%out')],
+)
