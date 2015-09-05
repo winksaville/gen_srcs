@@ -520,134 +520,6 @@ class CMakeBuilder:
         b.close()
 
 
-class CreatorBuilder:
-
-    def begRoot(self, root_path, applications_path, libraries_path):
-        apps_path = os.path.relpath(applications_path, root_path)
-        libs_path = os.path.relpath(libraries_path, root_path)
-        with open(os.path.join(root_path, '.creator'), 'w') as fp:
-            text = '''
-# @creator.unit.name = hierarchy
-
-define(':CFlags', ' -std=c99')
-define(':BuildDir', '$ProjectPath/build')
-
-workspace.path.append(e('$ProjectPath/{apps}'))
-workspace.path.append(e('$ProjectPath/{libs}'))
-
-load('apps')
-load('libs')'''.strip().format(apps=apps_path, libs=libs_path)
-            fp.write(text)
-
-        with open(os.path.join(root_path, 'template.app.creator'), 'w') as fp:
-            fp.write('''
-# @creator.unit.name = template.app
-
-load('platform', 'p')
-load('compiler', 'c')
-
-define('Sources', '$(wildcard $ProjectPath/src/*.c)')
-define('Objects', '$(p:obj $(move $Sources, $ProjectPath/src, $BuildDir/obj/$self))')
-define('Includes', '$ProjectPath/include')
-define('Libs', '')
-define('Bin', '$(p:bin $BuildDir/bin/${self}.)')
-
-target(
-  name='obj',
-  abstract=True,
-  inputs='$Sources',
-  outputs='$Objects',
-  command='ccache $c:cc $c:compileonly $(c:include $Includes) $CFlags $"< $(c:objout $@)',
-)
-
-target(
-  name='bin',
-  abstract=True,
-  inputs='$Objects',
-  outputs='$Bin',
-  command='ccache $c:cc $CFlags $!< $!Libs $(c:binout $@)',
-)
-'''.strip())
-
-        with open(os.path.join(root_path, 'template.lib.creator'), 'w') as fp:
-            fp.write('''
-# @creator.unit.name = template.lib
-
-load('platform', 'p')
-load('compiler', 'c')
-
-if not defined('BuildDir'):
-  error('BuildDir is not defined')
-
-define('Includes', '$ProjectPath/include')
-define('Sources', '$(wildcard $ProjectPath/src/*.c)')
-define('Objects', '$(p:obj $(move $Sources, $ProjectPath/src, $BuildDir/obj/$self))')
-define('Lib', '$(p:lib $BuildDir/libs/$self)')
-
-target(
-  name='obj',
-  abstract=True,
-  inputs='$Sources',
-  outputs='$Objects',
-  command='ccache $c:cc $c:compileonly $CFlags $(c:include $Includes) $(c:objout $@) $"<',
-)
-
-target(
-  name='lib',
-  requires=['obj'],
-  abstract=True,
-  inputs='$Objects',
-  outputs='$Lib',
-  command='ccache $(c:ar $@) $!<',
-)
-'''.strip())
-
-    def endRoot(self):
-        pass
-
-    def begAppBuilder(self, app_path):
-        self._apps_file = open(os.path.join(app_path, '.creator'), 'w')
-        self._apps_file.write('# @creator.unit.name = apps\n')
-
-    def endAppBuilder(self):
-        self._apps_file.close()
-        del self._apps_file
-
-    def addAppToAppBuilder(self, app):
-        self._apps_file.write("load('{0}')\n".format(app.getAppName()))
-
-        with open(os.path.join(app.getAppPath(), '.creator'), 'w') as fp:
-            fp.write('# @creator.unit.name = {0}\n'.format(app.getAppName()))
-            fp.write("extends('template.app')\n")
-
-            libs = ''
-            includes = ''
-            lib_deps = []
-            for lib in app.getLibraries():
-                fp.write("load('{0}')\n".format(lib.getLibName()))
-                lib_deps.append(lib.getLibName() + ':lib')
-                libs += ';${0}:Lib'.format(lib.getLibName())
-                includes += ';${0}:Includes'.format(lib.getLibName())
-            fp.write("append('Libs', {0!r})\n".format(libs))
-            fp.write("append('Includes', {0!r})\n".format(includes))
-            fp.write("[obj.requires(x) for x in %r]\n" % lib_deps)
-
-    def begLibBuilder(self, libraries_path):
-        self._libs_file = open(os.path.join(libraries_path, '.creator'), 'w')
-        self._libs_file.write('# @creator.unit.name = libs\n')
-
-    def endLibBuilder(self):
-        self._libs_file.close()
-        del self._libs_file
-
-    def addLibToLibBuilder(self, lib):
-        self._libs_file.write("load('{0}')\n".format(lib.getLibName()))
-
-        with open(os.path.join(lib.getLibPath(), '.creator'), 'w') as fp:
-            fp.write('# @creator.unit.name = {0}\n'.format(lib.getLibName()))
-            fp.write("extends('template.lib')\n")
-
-
 class CraftrBuilder(object):
 
     def begRoot(self, root_path, applications_path, libraries_path):
@@ -793,11 +665,11 @@ def main(args):
         return 0
 
     builders = {'cmake': CMakeBuilder(), 'meson': MesonBuilder(),
-                'creator': CreatorBuilder(), 'craftr': CraftrBuilder()}
+                'craftr': CraftrBuilder()}
     try:
         builder = builders[options.builder[0]]
     except:
-        print("option builder is '{0}' must be 'cmake', 'creator', "
+        print("option builder is '{0}' must be 'cmake', "
               "'craftr' or 'meson'".format(options.builder))
         return 1
 
